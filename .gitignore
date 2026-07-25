@@ -2,3 +2,7 @@
 .vscode/
 .DS_Store
 data/
+
+# bridge runtime state
+__pycache__/
+*.pyc

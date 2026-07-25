@@ -66,6 +66,12 @@ If discovery isn't finding the stick:
 - Make sure it's awake (any button press)
 - Check the stick's settings menu → bluetooth is on
 
+## Cursor on Windows
+
+The same device can follow [Cursor](https://cursor.com) instead of the
+Claude desktop app — no firmware changes, same BLE protocol, approvals still
+land on the A/B buttons. See **[bridge/README.md](bridge/README.md)**.
+
 ## Controls
 
 |                         | Normal               | Pet         | Info        | Approval    |

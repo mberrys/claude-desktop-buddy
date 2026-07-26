@@ -1,6 +1,7 @@
 # Cursor bridge (Windows 11)
 
-Drives the buddy device from **Cursor** instead of the Claude desktop app.
+Drives the buddy device (an M5Cardputer) from **Cursor** instead of the
+Claude desktop app.
 
 The device firmware doesn't change at all — this speaks the same BLE
 protocol documented in [REFERENCE.md](../REFERENCE.md), so the pet sleeps,
@@ -10,12 +11,12 @@ changes is where the events come from: Cursor's
 sessions.
 
 You can approve or deny Cursor's shell commands and MCP tool calls from the
-stick's A/B buttons.
+Cardputer's keyboard: **enter** approves, **esc** denies.
 
 ## How it fits together
 
 ```
-Cursor ──stdin/stdout──> run_hook.py ──loopback TCP──> daemon ──BLE──> stick
+Cursor ──stdin/stdout──> run_hook.py ──loopback TCP──> daemon ──BLE──> device
         (one process                  (JSON lines,      (holds the
          per event)                    token auth)       connection)
 ```
@@ -36,11 +37,11 @@ cd bridge
 pip install -r requirements.txt
 ```
 
-**2. Pair the stick in Windows.** The firmware asks for LE Secure
+**2. Pair the device in Windows.** The firmware asks for LE Secure
 Connections bonding, and on Windows the OS owns pairing — bleak can't
-trigger it. Wake the stick, then **Settings → Bluetooth & devices → Add
-device → Bluetooth**, pick the `Claude…` entry, and enter the 6-digit
-passkey it shows. You only do this once.
+trigger it. Wake the Cardputer with any keypress, then **Settings →
+Bluetooth & devices → Add device → Bluetooth**, pick the `Claude…` entry,
+and enter the 6-digit passkey it shows on screen. You only do this once.
 
 Check it from the bridge:
 
@@ -55,7 +56,7 @@ python -m cursor_buddy daemon --owner Michael
 ```
 
 It scans for the first `Claude*` device and reconnects on its own whenever
-the stick wakes up. Pass `--address <BLE address>` if you have more than one.
+the Cardputer wakes up. Pass `--address <BLE address>` if you have more than one.
 To have it start with Windows, put a shortcut to `scripts\run-daemon.cmd` in
 the folder that opens from `Win+R` → `shell:startup`.
 
@@ -80,7 +81,7 @@ python -m cursor_buddy status
 | Cursor hook            | Effect on the device                                    |
 | ---------------------- | ------------------------------------------------------- |
 | `beforeSubmitPrompt`   | session becomes `running` → `busy`; prompt hits the transcript |
-| `beforeShellExecution` | **approval prompt** → `attention`, LED blinks, A/B decides |
+| `beforeShellExecution` | **approval prompt** → `attention`, chirp, enter/esc decides |
 | `beforeMCPExecution`   | **approval prompt**, tool name and arguments shown       |
 | `afterFileEdit`        | `edited main.cpp` in the transcript, feeds the level bar |
 | `stop`                 | session stops running → back to `idle`                   |
@@ -97,12 +98,12 @@ token. It paces the celebrations sensibly; it is not a billing figure.
 When a gated hook fires, the daemon raises a prompt on the device and the
 hook process blocks:
 
-- **A** → `once` → Cursor gets `{"permission": "allow"}`
-- **B** → `deny` → Cursor gets `{"permission": "deny"}`
+- **enter** (or `y`) → `once` → Cursor gets `{"permission": "allow"}`
+- **esc** (or `n`) → `deny` → Cursor gets `{"permission": "deny"}`
 
 **Every failure path falls back to `ask`**, which just means Cursor shows
 its own approval UI as if the bridge weren't installed. That happens when
-the stick is asleep or out of range, when nobody presses a button within the
+the device is asleep or out of range, when nobody answers within the
 timeout, and when the daemon isn't running. A dead bridge can't wedge your
 editor.
 
@@ -114,7 +115,7 @@ multiplexing rather than picking a winner — which is what the protocol
 expects: `total` counts all live conversations, `running` counts the ones
 generating right now.
 
-To keep that legible on a 135px screen:
+To keep that legible in a 20-column panel:
 
 - Transcript lines and approval prompts get a `[workspace]` tag **only when
   two or more workspaces are actually active**. One window, no tag.
@@ -153,12 +154,12 @@ drive your pet or answer your prompts.
 
 ## Troubleshooting
 
-**`scan` finds nothing.** Wake the stick with a button press, check its
+**`scan` finds nothing.** Wake the Cardputer with a keypress, check its
 settings menu → bluetooth is on, and confirm Windows Bluetooth is enabled.
 
 **Daemon connects, pet stays asleep.** Asleep is the `sleep` state, which
 means *no snapshots arriving*. Run the daemon with `-v` and confirm
-snapshots are going out; if they are, the stick is likely bonded to a stale
+snapshots are going out; if they are, the device is likely bonded to a stale
 key — **Forget** it in Windows Bluetooth settings and pair again.
 
 **Hooks don't fire.** Restart Cursor after installing. Verify the paths in

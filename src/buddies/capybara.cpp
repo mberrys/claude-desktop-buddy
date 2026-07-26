@@ -1,9 +1,9 @@
 #include "../buddy.h"
 #include "../buddy_common.h"
-#include <M5StickCPlus.h>
+#include "../hw.h"
 #include <string.h>
 
-extern TFT_eSprite spr;
+extern Sprite spr;
 
 namespace capybara {
 

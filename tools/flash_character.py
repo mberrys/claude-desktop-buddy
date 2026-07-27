@@ -32,7 +32,7 @@ def flash(src: Path) -> None:
     print(f"staged {name}: {total:,} bytes -> {dst}")
 
     subprocess.run(["pio", "run", "-t", "uploadfs"], cwd=PROJECT, check=True)
-    print(f"\nflashed. on the device: m -> settings -> ascii pet -> GIF")
+    print(f"\nflashed. on the stick: hold A -> settings -> species -> GIF")
 
 
 if __name__ == "__main__":

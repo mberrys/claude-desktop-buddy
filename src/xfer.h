@@ -72,7 +72,7 @@ const char* petName();
 void ownerSet(const char* name);
 const char* ownerName();
 #include "stats.h"
-#include "hw.h"
+#include <M5StickCPlus.h>
 
 inline bool xferCommand(JsonDocument& doc) {
   const char* cmd = doc["cmd"];
@@ -112,22 +112,21 @@ inline bool xferCommand(JsonDocument& doc) {
   if (strcmp(cmd, "status") == 0) {
     // Dump everything the info screens show. Manual printf rather than
     // ArduinoJson serialize — less heap churn, and the shape is fixed.
-    // The Cardputer reports level and voltage but has no per-battery
-    // current sense, so `mA` is omitted from the ack (the protocol lets
-    // you leave out fields you don't have) and `usb` reports charging.
-    int vBat = hw::batteryMilliVolts();
-    int pct  = hw::batteryPct();
-    bool usb = hw::charging();
+    int vBat = (int)(M5.Axp.GetBatVoltage() * 1000);
+    int iBat = (int)M5.Axp.GetBatCurrent();
+    int vBus = (int)(M5.Axp.GetVBusVoltage() * 1000);
+    int pct = (vBat - 3200) / 10;
+    if (pct < 0) pct = 0; if (pct > 100) pct = 100;
     char b[320];
     int len = snprintf(b, sizeof(b),
       "{\"ack\":\"status\",\"ok\":true,\"n\":0,\"data\":{"
       "\"name\":\"%s\",\"owner\":\"%s\",\"sec\":%s,"
-      "\"bat\":{\"pct\":%d,\"mV\":%d,\"usb\":%s},"
+      "\"bat\":{\"pct\":%d,\"mV\":%d,\"mA\":%d,\"usb\":%s},"
       "\"sys\":{\"up\":%lu,\"heap\":%u,\"fsFree\":%lu,\"fsTotal\":%lu},"
       "\"stats\":{\"appr\":%u,\"deny\":%u,\"vel\":%u,\"nap\":%lu,\"lvl\":%u}"
       "}}\n",
       petName(), ownerName(), bleSecure() ? "true" : "false",
-      pct, vBat, usb ? "true" : "false",
+      pct, vBat, iBat, (vBus > 4000) ? "true" : "false",
       millis() / 1000, ESP.getFreeHeap(),
       (unsigned long)(LittleFS.totalBytes() - LittleFS.usedBytes()),
       (unsigned long)LittleFS.totalBytes(),

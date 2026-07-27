@@ -66,6 +66,28 @@ If discovery isn't finding the stick:
 - Make sure it's awake (any button press)
 - Check the stick's settings menu → bluetooth is on
 
+## Other hosts (Codex, ChatGPT desktop)
+
+Only the Claude desktop apps implement the BLE bridge natively. To drive the
+same firmware from **Codex CLI or ChatGPT desktop on Windows 11**, run
+`tools/win_bridge` — a Python script that plays the desktop app's side of the
+protocol: it connects to the stick as a BLE central, tails Codex's session
+logs for activity, and exposes a loopback HTTP endpoint anything else can
+push status (and approval prompts) into.
+
+```powershell
+cd tools\win_bridge
+pip install -r requirements.txt
+python -m buddy_bridge --scan     # confirm the stick is visible
+python -m buddy_bridge --demo     # verify the link with fake traffic
+python -m buddy_bridge --owner Michael
+```
+
+No firmware changes are needed. See
+[tools/win_bridge/README.md](tools/win_bridge/README.md) for setup, what does
+and doesn't round-trip (approvals are display-only from the log tail), and
+troubleshooting.
+
 ## Controls
 
 |                         | Normal               | Pet         | Info        | Approval    |

@@ -1,9 +1,9 @@
 #include "../buddy.h"
 #include "../buddy_common.h"
-#include "../hw.h"
+#include <M5StickCPlus.h>
 #include <string.h>
 
-extern Sprite spr;
+extern TFT_eSprite spr;
 
 namespace turtle {
 

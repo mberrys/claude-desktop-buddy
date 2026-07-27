@@ -18,11 +18,6 @@ The BLE bridge is off by default. In Claude for macOS or Windows:
 Once paired the bridge auto-reconnects in the background; you only need the
 window open for initial pairing, the stats panel, or the folder drop target.
 
-Other hosts don't implement this protocol. If you want a device driven by
-something else — Codex CLI, ChatGPT desktop, your own tooling — you need a
-program that plays the central side described below;
-[`tools/win_bridge`](tools/win_bridge/) is a working one for Windows 11.
-
 ## Transport
 
 **BLE Nordic UART Service** (the de-facto serial-over-BLE standard):

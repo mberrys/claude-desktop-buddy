@@ -17,15 +17,21 @@ wakes when sessions start, gets visibly impatient when an approval prompt is
 waiting, and lets you approve or deny right from the device.
 
 <p align="center">
-  <img src="docs/device.jpg" alt="M5StickC Plus running the buddy firmware" width="500">
+  <img src="docs/device.jpg" alt="the buddy firmware running" width="500">
 </p>
 
 ## Hardware
 
-The firmware targets ESP32 with the Arduino framework. As written, it
-depends on the M5StickCPlus library for its display, IMU, and button
-drivers—so you'll need that board, or a fork that swaps those drivers for
-your own pin layout.
+The firmware targets the **M5Cardputer** (ESP32-S3) with the Arduino
+framework, driving its 240×135 landscape screen and built-in keyboard. All
+board-specific code sits behind `src/hw.h`, so porting to another ESP32
+board means reimplementing that one header's worth of display, input, and
+power calls.
+
+> Earlier revisions of this firmware targeted the M5StickC Plus. That build
+> is gone: the Cardputer has no IMU and no AXP192, so shake-to-dizzy and
+> face-down napping were replaced rather than abstracted (see
+> [Controls](#controls)). Git history has the StickC version if you want it.
 
 ## Flashing
 
@@ -43,16 +49,23 @@ If you're starting from a previously-flashed device, wipe it first:
 pio run -t erase && pio run -t upload
 ```
 
-Once running, you can also wipe everything from the device itself: **hold A
-→ settings → reset → factory reset → tap twice**.
+Once running, you can also wipe everything from the device itself: **m →
+settings → reset → factory reset → press enter twice**.
 
 ## Pairing
 
-To pair your device with Claude, first enable developer mode (**Help →
-Troubleshooting → Enable Developer Mode**). Then, open the Hardware Buddy
-window in **Developer → Open Hardware Buddy…**, click **Connect**, and pick
-your device from the list. macOS will prompt for Bluetooth permission on
-first connect; grant it.
+### With Cursor on Windows
+
+Run the host-side bridge in **[bridge/](bridge/README.md)** — it speaks the
+same protocol the Claude desktop apps do, driven by Cursor's agent hooks, so
+shell commands and MCP tool calls come to the device for approval.
+
+### With the Claude desktop apps
+
+Enable developer mode (**Help → Troubleshooting → Enable Developer Mode**),
+open **Developer → Open Hardware Buddy…**, click **Connect**, and pick your
+device from the list. The OS prompts for Bluetooth permission on first
+connect; grant it.
 
 <p align="center">
   <img src="docs/menu.png" alt="Developer → Open Hardware Buddy… menu item" width="420">
@@ -61,10 +74,10 @@ first connect; grant it.
 
 Once paired, the bridge auto-reconnects whenever both sides are awake.
 
-If discovery isn't finding the stick:
+If discovery isn't finding the Cardputer:
 
-- Make sure it's awake (any button press)
-- Check the stick's settings menu → bluetooth is on
+- Make sure it's awake (any keypress)
+- Check its settings menu → bluetooth is on
 
 ## Other hosts (Codex, ChatGPT desktop)
 
@@ -90,18 +103,31 @@ troubleshooting.
 
 ## Controls
 
-|                         | Normal               | Pet         | Info        | Approval    |
-| ----------------------- | -------------------- | ----------- | ----------- | ----------- |
-| **A** (front)           | next screen          | next screen | next screen | **approve** |
-| **B** (right)           | scroll transcript    | next page   | next page   | **deny**    |
-| **Hold A**              | menu                 | menu        | menu        | menu        |
-| **Power** (left, short) | toggle screen off    |             |             |             |
-| **Power** (left, ~6s)   | hard power off       |             |             |             |
-| **Shake**               | dizzy                |             |             | —           |
-| **Face-down**           | nap (energy refills) |             |             |             |
+The Cardputer's keyboard replaces the StickC's two buttons.
+
+|                        | Normal            | Pet / Info / Clock | Menus       | Approval    |
+| ---------------------- | ----------------- | ------------------ | ----------- | ----------- |
+| **enter**              |                   |                    | select      | **approve** |
+| **y**                  |                   |                    |             | **approve** |
+| **esc**                |                   |                    | close       | **deny**    |
+| **n** / **backspace**  |                   |                    |             | **deny**    |
+| **tab**                | next screen       | next screen        |             |             |
+| **space**              |                   | next page          |             |             |
+| **up / down**          | scroll transcript |                    | move        |             |
+| **m**                  | menu              | menu               | close menu  |             |
+| **z**                  | dizzy             |                    |             |             |
+| **side button** (tap)  | screen on/off     |                    |             |             |
+| **side button** (2s)   | power off         |                    |             |             |
 
 The screen auto-powers-off after 30s of no interaction (kept on while an
-approval prompt is up). Any button press wakes it.
+approval prompt is up). Any keypress wakes it — and the keypress that wakes
+the screen is swallowed, so waking never also changes screens.
+
+**What the Cardputer can't do.** It has no IMU, so shake-to-dizzy became the
+`z` key and face-down napping became "naps while the screen is off" (energy
+still refills). It has no notification LED, so `attention` signals with a
+chirp and the screen instead. And with no RTC, the clock is software-only:
+the bridge sets it on connect and it resets on reboot.
 
 ## ASCII pets
 
@@ -113,7 +139,7 @@ Choice persists to NVS.
 
 If you want a custom GIF character instead of an ASCII buddy, drag a
 character pack folder onto the drop target in the Hardware Buddy window. The
-app streams it over BLE and the stick switches to GIF mode live. **Settings
+app streams it over BLE and the device switches to GIF mode live. **Settings
 → delete char** reverts to ASCII mode.
 
 A character pack is a folder with `manifest.json` and 96px-wide GIFs:
@@ -144,11 +170,13 @@ State values can be a single filename or an array. Arrays rotate: each
 loop-end advances to the next GIF, useful for an idle activity carousel so
 the home screen doesn't loop one clip forever.
 
-GIFs are 96px wide; height up to ~140px stays on a 135×240 portrait screen.
-Crop tight to the character — transparent margins waste screen and shrink
-the sprite. `tools/prep_character.py` handles the resize: feed it source
-GIFs at any sizes and it produces a 96px-wide set where the character is the
-same scale in every state.
+GIFs are 96px wide, which fits the 112px pet column on the left of the
+landscape screen. Height up to 135px renders full-size; taller packs (the
+old portrait art went to ~140px) automatically drop to half scale rather
+than getting cropped. Crop tight to the character — transparent margins
+waste screen and shrink the sprite. `tools/prep_character.py` handles the
+resize: feed it source GIFs at any sizes and it produces a 96px-wide set
+where the character is the same scale in every state.
 
 The whole folder must fit under 1.8MB —
 `gifsicle --lossy=80 -O3 --colors 64` typically cuts 40–60%.
@@ -166,9 +194,9 @@ If you're iterating on a character and would rather skip the BLE round-trip,
 | `sleep`     | bridge not connected        | eyes closed, slow breathing |
 | `idle`      | connected, nothing urgent   | blinking, looking around    |
 | `busy`      | sessions actively running   | sweating, working           |
-| `attention` | approval pending            | alert, **LED blinks**       |
+| `attention` | approval pending            | alert, **chirps**           |
 | `celebrate` | level up (every 50K tokens) | confetti, bouncing          |
-| `dizzy`     | you shook the stick         | spiral eyes, wobbling       |
+| `dizzy`     | you pressed `z`             | spiral eyes, wobbling       |
 | `heart`     | approved in under 5s        | floating hearts             |
 
 ## Project layout
@@ -176,6 +204,8 @@ If you're iterating on a character and would rather skip the BLE round-trip,
 ```
 src/
   main.cpp       — loop, state machine, UI screens
+  hw.h / hw.cpp  — all Cardputer-specific code: display, keyboard,
+                   power, and the software clock (no RTC on this board)
   buddy.cpp      — ASCII species dispatch + render helpers
   buddies/       — one file per species, seven anim functions each
   ble_bridge.cpp — Nordic UART service, line-buffered TX/RX
@@ -185,6 +215,7 @@ src/
   stats.h        — NVS-backed stats, settings, owner, species choice
 characters/      — example GIF character packs
 tools/           — generators and converters
+bridge/          — host-side bridge that drives the device from Cursor
 ```
 
 ## Availability

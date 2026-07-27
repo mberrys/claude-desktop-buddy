@@ -1,0 +1,10 @@
+# Cardputer (StampS3, 8MB flash). No OTA — one app image, and the rest of
+# the flash goes to LittleFS so character packs have room. The protocol
+# caps a folder push at 1.8MB; 3MB of filesystem leaves headroom for a
+# second pack plus filesystem overhead.
+# Name,   Type, SubType, Offset,   Size
+nvs,      data, nvs,     0x9000,   0x5000
+otadata,  data, ota,     0xe000,   0x2000
+app0,     app,  factory, 0x10000,  0x400000
+spiffs,   data, spiffs,  0x410000, 0x3E0000
+coredump, data, coredump,0x7F0000, 0x10000

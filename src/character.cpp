@@ -1,10 +1,10 @@
 #include "character.h"
-#include <M5StickCPlus.h>
+#include "hw.h"
 #include <LittleFS.h>
 #include <AnimatedGIF.h>
 #include <ArduinoJson.h>
 
-extern TFT_eSprite spr;
+extern Sprite spr;
 
 static const char* STATE_NAMES[] = {
   "sleep", "idle", "busy", "attention", "celebrate", "dizzy", "heart"
@@ -37,21 +37,26 @@ static uint8_t curState = 0xFF;
 static AnimatedGIF gif;
 static File        gifFile;
 static int         gifX = 0, gifY = 0, gifW = 0, gifH = 0;
-// Peek mode pins the GIF bottom to the info-panel top (y=70) so the pet
-// sits on the panel edge regardless of canvas height. Home mode centers
-// in the upper 140px. No padding assumed in the source art.
-static const int   PEEK_TOP = 70;
+// The pet column is PET_W wide and the full screen tall. Character packs
+// are authored 96px wide and up to ~140px tall for the StickC's portrait
+// screen, so anything taller than the landscape screen renders at half
+// scale ("peek") rather than being cropped.
+static const int   PEEK_TOP = SCREEN_H;
 static bool        peekMode = false;
-// Draw target — defaults to the sprite; characterRenderTo() retargets to
-// M5.Lcd for the landscape clock (both inherit TFT_eSPI).
-static TFT_eSPI*   _tgt = &spr;
+// Draw target. Only ever the sprite today, but the species/GIF paths are
+// written against the base class so a direct-to-panel path stays possible.
+static Gfx*        _tgt = &spr;
 // Peek mode renders at half scale (2:1 nearest-neighbor in gifDrawCb) so
 // the whole pet fits the 70px window instead of cropping the top.
 static void gifPlace() {
+  // Packs authored for the StickC can be taller than this screen; those
+  // render 2:1 rather than getting cropped.
+  peekMode = (gifH > SCREEN_H);
   int outW = peekMode ? gifW / 2 : gifW;
   int outH = peekMode ? gifH / 2 : gifH;
-  gifX = (spr.width() - outW) / 2;
-  gifY = peekMode ? (PEEK_TOP - outH) / 2 : (140 - outH) / 2;
+  gifX = (PET_W - outW) / 2;
+  gifY = (SCREEN_H - outH) / 2;
+  if (gifY < 0) gifY = 0;
 }
 static uint32_t    nextFrameAt = 0;
 static uint32_t    animPauseUntil = 0;
@@ -120,6 +125,9 @@ static void gifDrawCb(GIFDRAW* d) {
     if (y < 0 || y >= PEEK_TOP) return;
     int x0 = gifX + (d->iX >> 1);
     int w  = d->iWidth >> 1;
+    if (x0 < 0) { src -= x0 * 2; w += x0; x0 = 0; }
+    if (x0 + w > PET_W) w = PET_W - x0;
+    if (w <= 0) return;
     for (int i = 0; i < w; i++) put(x0 + i, y, src[i << 1]);
     return;
   }
@@ -130,7 +138,9 @@ static void gifDrawCb(GIFDRAW* d) {
   int w  = d->iWidth;
   if (w > 256) w = 256;
   if (x0 < 0) { src -= x0; w += x0; x0 = 0; }
-  if (x0 + w > spr.width()) w = spr.width() - x0;
+  // Clip to the pet column, not the sprite: the UI panel lives to the
+  // right of PET_W and a wide frame must not paint over it.
+  if (x0 + w > PET_W) w = PET_W - x0;
   if (w <= 0) return;
   for (int i = 0; i < w; i++) put(x0 + i, y, src[i]);
 }
@@ -247,30 +257,6 @@ bool characterInit(const char* name) {
 bool characterLoaded() { return loaded; }
 const Palette& characterPalette() { return pal; }
 
-// One-shot half-scale render to an arbitrary surface (M5.Lcd for the
-// landscape clock). Caller owns clearing. Advances frame timing so
-// animation runs even when characterTick() is bypassed.
-void characterRenderTo(TFT_eSPI* tgt, int cx, int cy) {
-  if (!gifOpen) return;   // caller opens via characterSetState(activeState)
-  TFT_eSPI* prevT = _tgt; bool prevP = peekMode; int px = gifX, py = gifY;
-  _tgt = tgt; peekMode = true;
-  gifX = cx - gifW / 4;
-  gifY = cy - gifH / 4;
-  uint32_t now = millis();
-  if (now >= nextFrameAt) {
-    int delayMs = 0;
-    if (!gif.playFrame(false, &delayMs)) { gif.reset(); gif.playFrame(false, &delayMs); }
-    nextFrameAt = now + (delayMs > 0 ? delayMs : 100);
-  }
-  _tgt = prevT; peekMode = prevP; gifX = px; gifY = py;
-}
-
-void characterSetPeek(bool peek) {
-  if (peekMode == peek) return;
-  peekMode = peek;
-  characterInvalidate();
-}
-
 void characterClose() {
   if (gifOpen) { gif.close(); gifOpen = false; }
   loaded = false;
@@ -342,15 +328,15 @@ void characterTick() {
 
     // Clear a band around the text, not the whole sprite — keeps overlays
     // like the approval panel and the HUD untouched.
-    int cy = peekMode ? 35 : 60;
-    spr.fillRect(0, cy - 14, spr.width(), 28, pal.bg);
+    int cy = SCREEN_H / 2;
+    spr.fillRect(0, cy - 14, PET_W, 28, pal.bg);
 
     const char* line = ts.frames[textFrame];
     int len = strlen(line);
     int tw = len * 12;                                    // size-2 glyph width
     spr.setTextColor(pal.body, pal.bg);
     spr.setTextSize(2);
-    spr.setCursor((spr.width() - tw) / 2, cy - 8);
+    spr.setCursor((PET_W - tw) / 2, cy - 8);
     spr.print(line);
 
     textFrame = (textFrame + 1) % ts.nFrames;
